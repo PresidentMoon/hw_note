@@ -302,6 +302,8 @@ $("aiRead").onclick=async()=>{ if(!LC||!LC.strokes.length) return;
 // ---------------- 내보내기 ----------------
 let downloads=null;
 async function saveFile(name, data){
+  if (window.Android && window.Android.saveFile){ const blob=new Blob([data],{type:"application/json"});
+    return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>{ window.__androidSaved=ok=>{ window.__androidSaved=null; ok?res():rej({code:"declined"}); }; window.Android.saveFile(name,"application/json",String(fr.result).split(",")[1]); }; fr.readAsDataURL(blob); }); }
   if(downloads){ await downloads.save({filename:name,data}); return; }
   if(window.claude&&window.claude.use) throw {code:"unavailable"};
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([data],{type:"application/json"})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500);

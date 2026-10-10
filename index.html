@@ -85,7 +85,10 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
 .danger{border-color:var(--accent);color:var(--accent);background:none}
 .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
 #exportBox{display:none;width:100%;height:100px;margin-top:10px;font-family:ui-monospace,monospace;font-size:11px}
-.papers{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.papers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+#selBar[hidden],#selHint[hidden]{display:none!important}
+@media (max-width:560px){.papers{grid-template-columns:repeat(2,1fr)}}
+#dlgPaper{width:min(620px,94vw)}
 .papers button{border:1px solid var(--line);background:var(--chrome);border-radius:10px;padding:12px;text-align:left}
 .papers small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
 </style>
@@ -138,6 +141,14 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
     <button data-paper="wide">넓은 줄<small>줄 간격 11mm</small></button>
     <button data-paper="blank">무지<small>줄 없음</small></button>
     <button data-paper="grid">모눈<small>8.4mm 칸</small></button>
+    <button data-paper="narrow">좁은 줄<small>줄 간격 6.7mm</small></button>
+    <button data-paper="dot">점 모눈<small>8.4mm 점</small></button>
+    <button data-paper="cornell">코넬 노트<small>제목·단서·필기·요약</small></button>
+    <button data-paper="todo">할 일 목록<small>체크 칸 + 줄</small></button>
+    <button data-paper="wrong">오답 노트<small>문제 / 풀이 나눔</small></button>
+    <button data-paper="manuscript">원고지<small>20칸</small></button>
+    <button data-paper="music">오선지<small>악보</small></button>
+    <button data-paper="weekly">주간 계획<small>월~일</small></button>
     <button id="btnImportForm" style="grid-column:1/-1">PDF·사진 양식 불러오기<small>학교 서류 같은 양식을 배경으로 깔고 그 위에 써요. PDF는 쪽마다 페이지가 생겨요</small></button>
   </div>
   <input type="file" id="fileForm" accept="application/pdf,image/*" hidden>
@@ -161,6 +172,7 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
     <p style="font-size:12px;margin:-6px 0 12px"><a href="label.html" target="_blank" rel="noopener">라벨링 도구 열기</a> (GitHub 사이트에 같이 올렸을 때)</p>
     <div class="row" style="margin-bottom:8px"><button class="btn" id="btnPack">필체 팩 불러오기</button><input type="file" id="filePack" accept=".json,application/json" hidden></div>
     <p style="font-size:12px;margin:0 0 10px" id="packInfo"></p>
+    <div class="row" style="margin-bottom:10px"><input id="packUrl" placeholder="필체 팩 주소 (예: https://아이디.github.io/저장소/pack.json)" style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--chrome);color:var(--ink);-webkit-user-select:text;user-select:text"><button class="btn" id="packCheck">새 팩 확인</button></div>
     <div class="row"><button class="btn" id="btnExport">하나씩 골라 저장</button><button class="btn" id="btnImport">가져오기 (PDF·사진·노트 JSON)</button><input type="file" id="fileImport" accept=".json,application/json,application/pdf,.pdf,image/*" hidden></div>
     <p style="font-size:12px;margin:6px 0 0" id="lastExport"></p>
   </div>
@@ -177,12 +189,20 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
 <dialog id="dlgGhost" style="width:min(660px,95vw)">
   <h3>대필</h3>
   <p id="ghostInfo" style="font-size:13px"></p>
+  <div class="row" style="margin-bottom:6px"><button class="btn" id="ghostImport">PDF·사진에서 글 가져오기</button><input type="file" id="fileSrc" accept="application/pdf,.pdf,image/*" hidden><small id="srcStatus" style="color:var(--muted)"></small></div>
   <textarea id="ghostText" rows="4" style="width:100%;font-size:16px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--chrome);color:var(--ink);-webkit-user-select:text;user-select:text" placeholder="이 칸에 쓸 내용 (줄바꿈 = 다음 줄)"></textarea>
   <div class="field" style="margin-top:12px"><span>글씨 크기 <b id="ghostSizeVal">100%</b></span><input type="range" id="ghostSize" min="50" max="180" value="100" style="width:100%"></div>
   <div class="field"><span>글씨 굵기 <b id="ghostWVal">100%</b></span><input type="range" id="ghostW" min="40" max="250" value="100" style="width:100%"></div>
   <div style="border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:42vh;background:#fff"><canvas id="ghostPrev" style="display:block"></canvas></div>
   <p id="ghostWarn" style="font-size:13px;color:var(--accent);min-height:18px;margin:6px 0 0"></p>
   <div class="actions"><button class="btn" id="ghostShuffle">다른 모양으로</button><span style="flex:1"></span><button class="btn" data-close>취소</button><button class="btn primary" id="ghostGo">이대로 쓰기</button></div>
+</dialog>
+
+<dialog id="dlgSrc" style="width:min(700px,95vw)">
+  <h3>가져온 글</h3>
+  <p style="font-size:13px">옮겨 쓸 부분을 드래그로 선택하고 <b>선택한 부분 넣기</b>, 또는 <b>전체 넣기</b>. 여기서 바로 고쳐도 돼요.</p>
+  <textarea id="srcText" style="width:100%;height:42vh;font-size:15px;line-height:1.6;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--chrome);color:var(--ink);-webkit-user-select:text;user-select:text"></textarea>
+  <div class="actions"><button class="btn" data-close>닫기</button><button class="btn" id="srcAll">전체 넣기</button><button class="btn primary" id="srcSel">선택한 부분 넣기</button></div>
 </dialog>
 
 <dialog id="dlgConfirm">
@@ -207,7 +227,34 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
 "use strict";
 const $=id=>document.getElementById(id);
 const PW=1000, PH=1414;
-const PAPER={ ruled:{gap:40,name:"줄"}, wide:{gap:52,name:"넓은 줄"}, blank:{gap:40,name:"무지"}, grid:{gap:40,name:"모눈"} };
+const PAPER={ ruled:{gap:40,name:"줄"}, wide:{gap:52,name:"넓은 줄"}, narrow:{gap:32,name:"좁은 줄"}, blank:{gap:40,name:"무지"}, grid:{gap:40,name:"모눈"}, dot:{gap:40,name:"점 모눈"},
+  cornell:{gap:40,name:"코넬 노트"}, todo:{gap:56,name:"할 일 목록"}, manuscript:{gap:40,name:"원고지"}, music:{gap:40,name:"오선지"}, weekly:{gap:40,name:"주간 계획"}, wrong:{gap:40,name:"오답 노트"} };
+// 속지 그리기 (화면·PDF 공통). c: 캔버스, s: 1단위당 픽셀
+function paintPaper(c, type, gap, s){
+  const L=(x1,y1,x2,y2)=>{ c.moveTo(x1*s,y1*s); c.lineTo(x2*s,y2*s); };
+  c.lineWidth=1; c.beginPath();
+  if (type==="ruled"||type==="wide"||type==="narrow"){ c.strokeStyle="#B9D3E6"; for (let y=140;y<PH-50;y+=gap) L(0,y,PW,y); c.stroke(); c.beginPath(); c.strokeStyle="#E8A39C"; L(80,0,80,PH); }
+  else if (type==="grid"){ c.strokeStyle="#DCE7F0"; for (let y=60;y<PH;y+=gap) L(0,y,PW,y); for (let x=20;x<PW;x+=gap) L(x,0,x,PH); }
+  else if (type==="dot"){ c.fillStyle="#AFC3D6"; for (let y=60;y<PH;y+=gap) for (let x=20;x<PW;x+=gap){ c.moveTo(x*s+1.6,y*s); c.arc(x*s,y*s,1.6,0,7); } c.fill(); }
+  else if (type==="cornell"){ c.strokeStyle="#B9D3E6"; for (let y=180;y<=PH-280;y+=40) L(250,y,PW-40,y); c.stroke(); c.beginPath(); c.strokeStyle="#7FA9CC"; L(40,140,PW-40,140); L(250,140,250,PH-260); L(40,PH-260,PW-40,PH-260); }
+  else if (type==="todo"){ c.strokeStyle="#B9D3E6"; for (let y=180;y<PH-60;y+=56){ L(110,y,PW-50,y); c.rect(64*s,(y-34)*s,26*s,26*s); } c.stroke(); c.beginPath(); c.strokeStyle="#7FA9CC"; L(50,120,PW-50,120); }
+  else if (type==="manuscript"){ c.strokeStyle="#E3A98F"; const cw=45, x0=50; for (let y=100;y+cw<PH-50;y+=cw+14){ c.rect(x0*s,y*s,20*cw*s,cw*s); for (let i=1;i<20;i++) L(x0+i*cw,y,x0+i*cw,y+cw); } }
+  else if (type==="music"){ c.strokeStyle="#9AA5B5"; for (let y=130;y+48<PH-50;y+=110) for (let i=0;i<5;i++) L(50,y+i*12,PW-50,y+i*12); }
+  else if (type==="weekly"){ c.strokeStyle="#B9D3E6"; const h=(PH-160)/7; for (let i=0;i<=7;i++) L(40,120+i*h,PW-40,120+i*h); L(150,120,150,PH-40); c.stroke();
+    c.fillStyle="#7FA9CC"; c.font=`${Math.round(26*s)}px sans-serif`; "월화수목금토일".split("").forEach((d,i)=>c.fillText(d,(80)*s,(120+i*h+40)*s)); c.beginPath(); }
+  else if (type==="wrong"){ c.strokeStyle="#B9D3E6"; for (let y=200;y<PH-50;y+=40) L(PW/2+20,y,PW-40,y); c.stroke(); c.beginPath(); c.strokeStyle="#E8A39C"; L(PW/2,80,PW/2,PH-40); c.stroke();
+    c.fillStyle="#C58B85"; c.font=`${Math.round(24*s)}px sans-serif`; c.fillText("문제", 60*s, 120*s); c.fillText("풀이 · 오답 이유", (PW/2+30)*s, 120*s); c.beginPath(); }
+  c.stroke();
+}
+// 대필이 맞춰 쓸 수 있는 속지의 줄
+function paperLines(p){
+  if (!p || p.bg) return null; const t=p.paper.type, g=p.paper.gap;
+  if (t==="ruled"||t==="wide"||t==="narrow"){ const ys=[]; for (let y=140;y<PH-50;y+=g) ys.push(y); return {ys, gap:g}; }
+  if (t==="cornell"){ const ys=[]; for (let y=180;y<=PH-280;y+=40) ys.push(y); return {ys, gap:40}; }
+  if (t==="todo"){ const ys=[]; for (let y=180;y<PH-60;y+=56) ys.push(y); return {ys, gap:56}; }
+  if (t==="wrong"){ const ys=[]; for (let y=200;y<PH-50;y+=40) ys.push(y); return {ys, gap:40}; }
+  return null;
+}
 const COLORS=["#1c1c1c","#1f3fae","#c62828","#2e7d32","#ef6c00","#6a1b9a"];
 const COLOR_NAMES=["검정","파랑","빨강","초록","주황","보라"];
 const HLCOLORS=["#ffe066","#b2f2bb","#ffc9e3","#a5d8ff"], HL_NAMES=["노랑","연두","분홍","하늘"];
@@ -259,7 +306,13 @@ function drawStroke(ctx, st, s){
     pts.forEach((q,i)=>i?ctx.lineTo(q[0]*s,q[1]*s):ctx.moveTo(q[0]*s,q[1]*s)); if (pts.length===1) ctx.lineTo(pts[0][0]*s+0.1,pts[0][1]*s); ctx.stroke(); ctx.restore(); return; }
   ctx.strokeStyle=st.color; ctx.fillStyle=st.color; ctx.lineCap="round"; ctx.lineJoin="round";
   if (pts.length===1){ ctx.beginPath(); ctx.arc(pts[0][0]*s, pts[0][1]*s, st.w*pressureFactor(pts[0][3])*s/2, 0, Math.PI*2); ctx.fill(); return; }
-  for (let i=1;i<pts.length;i++) seg(ctx, st, pts[i-1], pts[i], s);
+  let cw=-1;
+  for (let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i];
+    const v=Math.hypot(b[0]-a[0], b[1]-a[1])/Math.max(1, b[2]-a[2]);
+    const w=Math.round(Math.max(0.6, st.w*pressureFactor((a[3]+b[3])/2)*Math.max(0.6, 1.1-0.25*v)*s)*4)/4;
+    if (w!==cw){ if (cw>0) ctx.stroke(); ctx.beginPath(); ctx.lineWidth=w; ctx.moveTo(a[0]*s, a[1]*s); cw=w; }
+    ctx.lineTo(b[0]*s, b[1]*s); }
+  if (cw>0) ctx.stroke();
 }
 function seg(ctx, st, a, b, s){
   const v=Math.hypot(b[0]-a[0], b[1]-a[1])/Math.max(1, b[2]-a[2]);
@@ -274,16 +327,9 @@ function drawPaper(p){
     if (p._img.complete && p._img.naturalWidth){ const [x,y,w,h]=bgRect(p); c.drawImage(p._img, x*s, y*s, w*s, h*s); }
     return;
   }
-  const {type,gap}=p.paper;
-  if (type==="ruled"||type==="wide"){
-    c.strokeStyle="#B9D3E6"; c.lineWidth=1; c.beginPath(); for (let y=140; y<PH-50; y+=gap){ c.moveTo(0,y*s); c.lineTo(PW*s,y*s); } c.stroke();
-    c.strokeStyle="#E8A39C"; c.beginPath(); c.moveTo(80*s,0); c.lineTo(80*s,PH*s); c.stroke();
-  } else if (type==="grid"){
-    c.strokeStyle="#DCE7F0"; c.lineWidth=1; c.beginPath();
-    for (let y=60; y<PH; y+=gap){ c.moveTo(0,y*s); c.lineTo(PW*s,y*s); } for (let x=20; x<PW; x+=gap){ c.moveTo(x*s,0); c.lineTo(x*s,PH*s); } c.stroke();
-  }
+  paintPaper(c, p.paper.type, p.paper.gap, s);
 }
-function drawInk(p){ const c=p.el.ink.getContext("2d"); c.clearRect(0,0,PW*S,PH*S); for (const st of p.strokes) if (st.hl) drawStroke(c, st, S); for (const st of p.strokes) if (!st.hl) drawStroke(c, st, S); if (sel && sel.p===p) drawSel(p); }
+function drawInk(p, skip){ const c=p.el.ink.getContext("2d"); c.clearRect(0,0,PW*S,PH*S); for (const st of p.strokes) if (st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); for (const st of p.strokes) if (!st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); if (sel && sel.p===p && !skip) drawSel(p); }
 function sizeCanvas(cv){ const d=Math.min(window.devicePixelRatio||1, 2600/(PW*S)); cv.width=Math.round(PW*S*d); cv.height=Math.round(PH*S*d); cv.getContext("2d").setTransform(d,0,0,d,0,0); }
 function layout(){
   const avail=$("scroller").clientWidth-32; pageW=Math.min(900, Math.max(280, avail))*(set.zoom||1); S=pageW/PW;
@@ -464,28 +510,43 @@ function setSel(p, ids){
 function inPoly(x,y,P){ let c=false; for (let i=0,j=P.length-1;i<P.length;j=i++){ const [xi,yi]=P[i],[xj,yj]=P[j]; if (((yi>y)!==(yj>y)) && (x<(xj-xi)*(y-yi)/(yj-yi)+xi)) c=!c; } return c; }
 function lassoDown(p, [x,y]){
   if (sel && sel.p===p){ const [a,b,c,d]=sel.bb, r=14/S;
-    if (Math.hypot(x-c,y-d)<r*1.5){ selDrag={mode:"scale", x, y, ax:a+6, ay:b+6, orig:strokesOf(p,sel.ids).map(cloneStroke)}; return; }
-    if (x>=a && x<=c && y>=b && y<=d){ selDrag={mode:"move", x, y, orig:strokesOf(p,sel.ids).map(cloneStroke)}; return; } }
+    if (Math.hypot(x-c,y-d)<r*1.5){ selDrag={mode:"scale", x, y, ax:a+6, ay:b+6, orig:strokesOf(p,sel.ids).map(cloneStroke)}; startDragCache(p); return; }
+    if (x>=a && x<=c && y>=b && y<=d){ selDrag={mode:"move", x, y, orig:strokesOf(p,sel.ids).map(cloneStroke)}; startDragCache(p); return; } }
   setSel(null); lassoPath={p, pts:[[x,y]]};
 }
 function lassoMove(p, [x,y]){
   if (lassoPath && lassoPath.p===p){ lassoPath.pts.push([x,y]); const c=p.el.live.getContext("2d"); clearLive(p); c.save(); c.setLineDash([4,4]); c.strokeStyle="#1f6feb"; c.lineWidth=1.3; c.fillStyle="rgba(31,111,235,.06)";
     c.beginPath(); lassoPath.pts.forEach((q,i)=>i?c.lineTo(q[0]*S,q[1]*S):c.moveTo(q[0]*S,q[1]*S)); c.closePath(); c.fill(); c.stroke(); c.restore(); return; }
   if (!selDrag || !sel || sel.p!==p) return;
-  const d=selDrag, byId=new Map(p.strokes.map(s=>[s.id,s]));
-  let f=1, dx=0, dy=0;
-  if (d.mode==="move"){ dx=x-d.x; dy=y-d.y; }
-  else { const d0=Math.hypot(d.x-d.ax,d.y-d.ay)||1; f=Math.max(0.15, Math.hypot(x-d.ax,y-d.ay)/d0); }
+  const d=selDrag;
+  if (d.mode==="move"){ d.dx=x-d.x; d.dy=y-d.y; }
+  else { const d0=Math.hypot(d.x-d.ax,d.y-d.ay)||1; d.f=Math.max(0.15, Math.hypot(x-d.ax,y-d.ay)/d0); }
+  if (!rafPending){ rafPending=true; requestAnimationFrame(()=>{ rafPending=false; paintDragCache(p); }); }
+}
+// 끄는 동안: 선택한 글씨를 그림 한 장으로 만들어 그것만 옮겨 그림 (글이 많아도 매끄럽게)
+function startDragCache(p){
+  const live=p.el.live, cv=document.createElement("canvas"); cv.width=live.width; cv.height=live.height;
+  const c=cv.getContext("2d"), dpr=live.width/(PW*S); c.setTransform(dpr,0,0,dpr,0,0);
+  for (const st of strokesOf(p,sel.ids)) if (st.hl) drawStroke(c, st, S); for (const st of strokesOf(p,sel.ids)) if (!st.hl) drawStroke(c, st, S);
+  selDrag.cache=cv; selDrag.dx=0; selDrag.dy=0; selDrag.f=1; drawInk(p, sel.ids); paintDragCache(p);
+}
+function paintDragCache(p){
+  const d=selDrag; if (!d||!d.cache) return; const c=p.el.live.getContext("2d"); clearLive(p); c.save();
+  if (d.mode==="move") c.translate(d.dx*S, d.dy*S); else { c.translate(d.ax*S, d.ay*S); c.scale(d.f, d.f); c.translate(-d.ax*S, -d.ay*S); }
+  c.drawImage(d.cache, 0, 0, PW*S, PH*S);
+  const [a,b,cc,dd]=sel.bb; c.setLineDash([5/(d.f||1),4/(d.f||1)]); c.strokeStyle="#1f6feb"; c.lineWidth=1.3/(d.f||1); c.strokeRect(a*S,b*S,(cc-a)*S,(dd-b)*S); c.restore();
+}
+function applyDrag(p){
+  const d=selDrag, byId=new Map(p.strokes.map(s=>[s.id,s])), f=d.f||1, dx=d.dx||0, dy=d.dy||0;
   for (const o of d.orig){ const s=byId.get(o.id); if (!s) continue;
     s.pts=o.pts.map(q=>{ const r=q.slice(); if (d.mode==="move"){ r[0]=q[0]+dx; r[1]=q[1]+dy; } else { r[0]=d.ax+(q[0]-d.ax)*f; r[1]=d.ay+(q[1]-d.ay)*f; } return r; });
     if (d.mode==="scale") s.w=o.w*Math.max(0.4,Math.min(2.5,f)); delete s._bb; }
-  if (!rafPending){ rafPending=true; requestAnimationFrame(()=>{ rafPending=false; sel.bb=selBBox(p); drawInk(p); }); }
 }
 function lassoUp(p){
   if (lassoPath && lassoPath.p===p){ const P=lassoPath.pts; lassoPath=null; clearLive(p); if (P.length<3){ setSel(null); return; }
     const ids=new Set(p.strokes.filter(s=>{ let n=0; for (const q of s.pts) if (inPoly(q[0],q[1],P)) n++; return n/s.pts.length>=0.5; }).map(s=>s.id));
     setSel(p, ids); if (!ids.size) toast("선택된 글씨가 없어요. 글씨를 둘러서 그려 보세요."); return; }
-  if (selDrag && sel && sel.p===p){ const d=selDrag; selDrag=null; const now=strokesOf(p,sel.ids).map(cloneStroke);
+  if (selDrag && sel && sel.p===p){ applyDrag(p); const d=selDrag; selDrag=null; const now=strokesOf(p,sel.ids).map(cloneStroke);
     pushUndo({pid:p.id, removed:d.orig, added:now}); markDirty(p); sel.bb=selBBox(p); drawInk(p); }
 }
 function deleteSel(){ if (!sel) return; const p=sel.p, rm=strokesOf(p,sel.ids).map(cloneStroke); p.strokes=p.strokes.filter(s=>!sel.ids.has(s.id)); pushUndo({pid:p.id, removed:rm, added:[]}); setSel(null); drawInk(p); markDirty(p); }
@@ -563,6 +624,17 @@ document.querySelectorAll("#dlgPaper [data-paper]").forEach(b=>b.onclick=()=>{
 // ---------- 대필 (필체 팩) ----------
 let PACK=null, ghostDrag=null, ghostRect=null;
 function packInfo(){ $("packInfo").textContent = PACK ? `불러온 필체 팩: ${PACK.writer||"이름 없음"} · ${Object.keys(PACK.glyphs).length}자 (${PACK.createdAt||""})` : "필체 팩이 없어요. 컴퓨터에서 hw_pack_v3.py로 만든 필체팩 파일을 불러오세요."; }
+// 필체 팩 자동 업데이트: 설정의 주소(또는 사이트의 pack.json)에서 새 버전이 있으면 교체
+async function updatePack(manual){
+  const url=(set.packUrl||"").trim() || (location.protocol.startsWith("http") ? "pack.json" : "");
+  if (!url){ if (manual) toast("필체 팩 주소를 먼저 넣어 주세요."); return; }
+  try{ const r=await fetch(url,{cache:"no-cache"}); if (!r.ok) throw 0; const j=await r.json(); if (!j || j.format!=="hw-pack-v1") throw 0;
+    if (!PACK || PACK.createdAt!==j.createdAt){ PACK=j; await store.put("meta", j, "pack"); packInfo(); toast(`새 필체 팩을 받았어요 (${Object.keys(j.glyphs).length}자 · ${j.createdAt||""}).`); }
+    else if (manual) toast("이미 최신 필체 팩이에요."); }
+  catch(e){ if (manual) toast("필체 팩을 받지 못했어요. 주소와 인터넷 연결을 확인해 주세요."); }
+}
+$("packUrl").onchange=()=>{ set.packUrl=$("packUrl").value.trim(); markDirty(null); };
+$("packCheck").onclick=()=>{ set.packUrl=$("packUrl").value.trim(); markDirty(null); updatePack(true); };
 $("btnPack").onclick=()=>$("filePack").click();
 $("filePack").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if (!f) return;
   try{ const j=JSON.parse(await f.text()); if (j.format!=="hw-pack-v1") throw 0; PACK=j; await store.put("meta", j, "pack"); packInfo(); toast(`필체 팩을 불러왔어요 (${Object.keys(j.glyphs).length}자).`); }
@@ -595,7 +667,7 @@ function detectLines(p, R){
   const w=x1-x0, h=y1-y0; if (w<10||h<4) return [];
   let img; try{ img=cv.getContext("2d").getImageData(x0,y0,w,h).data; }catch(e){ return []; }
   const rows=[];
-  for (let y=0;y<h;y++){ let n=0; for (let x=0;x<w;x+=2){ const i=(y*w+x)*4; if (img[i]*0.3+img[i+1]*0.59+img[i+2]*0.11<170) n++; } if (n>w/2*0.6) rows.push(y); }
+  for (let y=0;y<h;y++){ let n=0; for (let x=0;x<w;x+=2){ const i=(y*w+x)*4; if (img[i]*0.3+img[i+1]*0.59+img[i+2]*0.11<170) n++; } if (n>w/2*0.38) rows.push(y); }
   const out=[]; let st=null, pv=null;
   for (const y of rows){ if (pv===null||y>pv+2){ if (st!==null) out.push((st+pv)/2); st=y; } pv=y; }
   if (st!==null) out.push((st+pv)/2);
@@ -605,23 +677,23 @@ function ghostCompose(R, text, adj, wadj=1, seed=ghostSeed){
   RNG=mulberry(seed);
   const p=R.p, L=PACK.layoutProfile||{}, G=PACK.glyphs;
   const sj=L.sizeJitter||0.08, bj=L.baselineJitter||0.03, cg=Math.max(0.04, L.charGap||0.04), wg=L.wordGap||0.2, off=L.baselineOffset||0.24;
-  const ruled=!p.bg && (p.paper.type==="ruled"||p.paper.type==="wide");
-  let H, bases=[], mode="box";
-  if (ruled){ const gap=p.paper.gap; H=gap*adj; mode="ruled";
-    for (let y=140; y<PH-50; y+=gap) if (y>=R.y0+0.55*gap && y<=R.y1+0.35*gap) bases.push(y-off*gap);
-    if (!bases.length) bases=[Math.min(R.y1, R.y0+gap)-off*gap]; }
+  let H, rows=[], mode="box";                          // rows: {base: 글자 바닥선, limit: 이보다 아래로 내려가면 안 되는 선}
+  const lineRows=(ys,gap)=>{ H=gap*adj; const lift=Math.max(0.12*gap, off*H);   // 줄에서 띄우는 높이는 글씨 크기에 비례(최소 줄 간격의 12%)
+    for (const y of ys) if (y>=R.y0+0.45*gap && y<=R.y1+0.4*gap) rows.push({base:y-lift, limit:y-0.07*gap, top:y-gap}); };
+  const PL=paperLines(p);
+  if (PL){ mode="ruled"; lineRows(PL.ys, PL.gap); if (!rows.length) lineRows([PL.ys.find(y=>y>R.y0)||R.y1], PL.gap); }
   else {
     const lines=detectLines(p,R);
     if (lines.length>=2){ const gap=median(lines.slice(1).map((y,i)=>y-lines[i]));
-      if (gap>=18 && gap<=120){ const ls=lines.filter(y=>y>R.y0+0.6*gap); if (ls.length){ H=gap*adj; bases=ls.map(y=>y-off*gap); mode="lines"; } } }
+      if (gap>=16 && gap<=130){ lineRows(lines, gap); if (rows.length) mode="lines"; } }
     if (mode==="box"){
       const h=R.y1-R.y0, hr=L.heightRatio||0.41, nch=[...text.replace(/\s/g,"")].length;
-      const H1=Math.max(25, Math.min(100, h*0.5/hr))*adj;                     // 양식 칸 한 줄: 칸 높이의 절반 정도 글씨
-      if (!text.includes("\n") && nch*0.62*H1 <= (R.x1-R.x0)*0.95){ H=H1; bases=[(R.y0+R.y1)/2+0.2*H]; }
-      else { H=Math.min(40*adj, h/1.6); const lh=1.45*H; for (let y=R.y0+0.95*H; y<=R.y1-0.1*H; y+=lh) bases.push(y); if (!bases.length) bases=[(R.y0+R.y1)/2+0.2*H]; }
+      const H1=Math.max(18, Math.min(100, h*0.5/hr))*adj;
+      if (!text.includes("\n") && nch*0.62*H1 <= (R.x1-R.x0)*0.95){ H=H1; rows=[{base:(R.y0+R.y1)/2+0.2*H, limit:R.y1-2, top:R.y0}]; }
+      else { H=Math.min(40*adj, h/1.6); const lh=1.45*H; for (let y=R.y0+0.95*H; y<=R.y1-0.1*H; y+=lh) rows.push({base:y, limit:Math.min(R.y1-2, y+0.45*H), top:y-H}); if (!rows.length) rows=[{base:(R.y0+R.y1)/2+0.2*H, limit:R.y1-2, top:R.y0}]; }
     }
   }
-  const out=[], missing=new Set(); let li=0, x=R.x0+0.15*H, over=0, t0=Date.now();
+  const out=[], rowOf=[], missing=new Set(); let li=0, x=R.x0+0.15*H, over=0, t0=Date.now();
   const pick=ch=>{ const e=G[ch]; if (!e) return null; const pool=(e.real&&e.real.length)?e.real:e.gen; return pool&&pool.length?pool[Math.floor(RNG()*pool.length)]:null; };
   const paras=text.split("\n");
   for (let pi=0; pi<paras.length; pi++){
@@ -635,18 +707,24 @@ function ghostCompose(R, text, adj, wadj=1, seed=ghostSeed){
       const ww=gl.reduce((s,g)=>s+(g.b-g.a)*H*g.k+cg*H,0);
       if (wi>0) x+=wg*H*(0.85+0.3*RNG());
       if (x+ww>R.x1 && x>R.x0+0.2*H){ li++; x=R.x0+0.15*H; }
-      if (li>=bases.length){ over+=words[wi].length; continue; }
-      for (const g of gl){ const base=bases[li];
+      if (li>=rows.length){ over+=words[wi].length; continue; }
+      for (const g of gl){ const base=rows[li].base;
         for (const st of g.S){ if (st.length<4) continue; const ts=st[2], pts=[];
-          for (let i=0;i<st.length;i+=4) pts.push([Math.round((x+(st[i]-g.a)*H*g.k)*10)/10, Math.round((base+((st[i+1]-0.72)*g.k+g.dy)*H)*10)/10, Math.max(0,st[i+2]-ts), st[i+3], 0, 0]);
-          out.push({id:uid(), pts, color:COLORS[set.color], w:WIDTHS[set.width]*Math.min(2.2,Math.max(0.7,H/40))*wadj, src:"gen", dev:set.device, t0:t0++}); }
+          for (let i=0;i<st.length;i+=4) pts.push([x+(st[i]-g.a)*H*g.k, base+((st[i+1]-0.72)*g.k+g.dy)*H, Math.max(0,st[i+2]-ts), st[i+3], 0, 0]);
+          out.push({id:uid(), pts, color:COLORS[set.color], w:WIDTHS[set.width]*Math.min(2.2,Math.max(0.6,H/40))*wadj, src:"gen", dev:set.device, t0:t0++}); rowOf.push(li); }
         x+=(g.b-g.a)*H*g.k+cg*H; }
     }
   }
+  // 줄마다 실제 글씨의 아래끝을 재서, 줄(또는 칸 아래)과 겹치면 그 줄 글씨 전체를 위로 올림
+  rows.forEach((r,i)=>{ let mx=-1e9, mn=1e9; out.forEach((st,j)=>{ if (rowOf[j]!==i) return; for (const q of st.pts){ if (q[1]>mx) mx=q[1]; if (q[1]<mn) mn=q[1]; } });
+    if (mx<-1e8) return; let shift=Math.min(0, r.limit-mx); if (mn+shift<r.top) shift=Math.max(shift, r.top-mn);
+    if (shift) out.forEach((st,j)=>{ if (rowOf[j]===i) for (const q of st.pts) q[1]+=shift; }); });
+  out.forEach(st=>{ for (const q of st.pts){ q[0]=Math.round(q[0]*10)/10; q[1]=Math.round(q[1]*10)/10; } });
   RNG=Math.random;
-  return {strokes:out, missing, over, mode, lines:bases.length};
+  return {strokes:out, missing, over, mode, lines:rows.length};
 }
-function ghostMsg(r){ const m=[]; if (r.mode==="lines") m.push(`양식의 줄 ${r.lines}개에 맞춰 써요`); if (r.missing.size) m.push(`팩에 없는 글자: ${[...r.missing].join(" ")}`); if (r.over) m.push(`칸이 좁아 ${r.over}자를 못 써요`); return m.join(" · "); }
+function ghostMsg(r){ const m=[]; if (r.mode==="lines") m.push(`양식의 줄 ${r.lines}개에 맞춰 써요`);
+  if ((r.mode==="lines"||r.mode==="ruled") && (+$("ghostSize").value)>125) m.push("글씨가 줄 간격보다 커서 줄과 겹칠 수 있어요"); if (r.missing.size) m.push(`팩에 없는 글자: ${[...r.missing].join(" ")}`); if (r.over) m.push(`칸이 좁아 ${r.over}자를 못 써요`); return m.join(" · "); }
 // ---- 미리보기 ----
 let prevTimer=null;
 function renderPreview(){
@@ -680,13 +758,49 @@ $("ghostGo").onclick=()=>{
   const m=ghostMsg(r); toast(m || "대필했어요. 지금 선택돼 있어서 바로 끌어서 옮기거나 크기를 바꿀 수 있어요.");
 };
 
+// ---------- 다른 PDF·사진에서 글 가져오기 (글자 PDF는 바로, 스캔·사진은 글자 인식) ----------
+let tessReady=null;
+function loadTesseract(){ if (window.Tesseract) return Promise.resolve(); if (!tessReady) tessReady=loadScriptFrom(["lib/tesseract.min.js","https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"]).catch(e=>{ tessReady=null; throw e; }); return tessReady; }
+async function ocrCanvases(cvs){
+  await loadTesseract(); const st=$("srcStatus"); const out=[];
+  const worker=await Tesseract.createWorker("kor+eng", 1, { logger:m=>{ if (m.status==="recognizing text") st.textContent=`글자 인식 중… ${Math.round(m.progress*100)}%`; else if (m.status) st.textContent="글자 인식 준비 중…"; } });
+  for (let i=0;i<cvs.length;i++){ st.textContent=`글자 인식 ${i+1}/${cvs.length}쪽…`; const r=await worker.recognize(cvs[i]); out.push((cvs.length>1?`[${i+1}쪽]\n`:"")+r.data.text.replace(/[ \t]+\n/g,"\n").trim()); }
+  await worker.terminate(); return out.join("\n\n");
+}
+function pdfTextOf(tc){ const rows=new Map(); for (const it of tc.items){ if (!it.str) continue; const y=Math.round(it.transform[5]/3); (rows.get(y)||rows.set(y,[]).get(y)).push(it); }
+  return [...rows.keys()].sort((a,b)=>b-a).map(y=>{ const its=rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]); let t="", end=null;
+    for (const it of its){ const x=it.transform[4], fs=Math.abs(it.transform[0])||10; if (end!==null && x-end>fs*0.25 && !/\s$/.test(t)) t+=" "; t+=it.str; end=x+(it.width||0); }
+    return t.replace(/\s+/g," ").trim(); }).filter(Boolean).join("\n"); }
+async function extractText(file){
+  const st=$("srcStatus");
+  if (file.type==="application/pdf" || /\.pdf$/i.test(file.name)){
+    st.textContent="PDF 읽는 중…"; await loadPdfJs(); const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+    const texts=[]; for (let n=1;n<=pdf.numPages;n++){ const pg=await pdf.getPage(n); texts.push(pdfTextOf(await pg.getTextContent())); }
+    const total=texts.join("").replace(/\s/g,"").length;
+    if (total>=10) return texts.map((t,i)=>(pdf.numPages>1?`[${i+1}쪽]\n`:"")+t).join("\n\n");
+    st.textContent="글자가 그림으로 된 PDF예요. 글자 인식을 시작해요…"; const cvs=[];
+    for (let n=1;n<=pdf.numPages;n++){ const pg=await pdf.getPage(n), v0=pg.getViewport({scale:1}), vp=pg.getViewport({scale:2000/v0.width}); const cv=document.createElement("canvas"); cv.width=vp.width; cv.height=vp.height; const cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); await pg.render({canvasContext:cx, viewport:vp}).promise; cvs.push(cv); }
+    return await ocrCanvases(cvs);
+  }
+  const url=URL.createObjectURL(file); const img=new Image(); await new Promise((r,j)=>{ img.onload=r; img.onerror=j; img.src=url; });
+  const cv=document.createElement("canvas"); const sc=Math.min(1, 2400/Math.max(img.naturalWidth,img.naturalHeight)); cv.width=img.naturalWidth*sc; cv.height=img.naturalHeight*sc; cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url);
+  return await ocrCanvases([cv]);
+}
+$("ghostImport").onclick=()=>$("fileSrc").click();
+$("fileSrc").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if (!f) return;
+  try{ const t=await extractText(f); $("srcStatus").textContent=""; if (!t.trim()){ toast("가져올 글을 찾지 못했어요."); return; } $("srcText").value=t; $("dlgSrc").showModal(); }
+  catch(err){ $("srcStatus").textContent=""; toast("글을 가져오지 못했어요. 스캔본·사진의 글자 인식은 인터넷 연결이 필요해요."); } };
+function insertGhostText(t){ const ta=$("ghostText"), a=ta.selectionStart??ta.value.length, b=ta.selectionEnd??a; ta.value=ta.value.slice(0,a)+t.replace(/\[\d+쪽\]\n?/g,"").trim()+ta.value.slice(b); $("dlgSrc").close(); schedulePreview(); ta.focus(); }
+$("srcAll").onclick=()=>insertGhostText($("srcText").value);
+$("srcSel").onclick=()=>{ const ta=$("srcText"); const t=ta.value.slice(ta.selectionStart, ta.selectionEnd); if (!t.trim()){ toast("넣을 부분을 먼저 드래그로 선택해 주세요."); return; } insertGhostText(t); };
+
 // ---------- PDF·사진 양식 불러오기 ----------
 let pdfReady=null;
 function loadPdfJs(){
   if (window.pdfjsLib) return Promise.resolve();
-  if (!pdfReady) pdfReady=new Promise((res,rej)=>{ const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
-    sc.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; res(); };
-    sc.onerror=()=>{ pdfReady=null; rej(); }; document.head.appendChild(sc); });
+  if (!pdfReady) pdfReady=loadScriptFrom(["lib/pdf.min.js","https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"]).then(()=>{
+      const local=[...document.scripts].some(x=>x.src.endsWith("lib/pdf.min.js"));
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc= local ? "lib/pdf.worker.min.js" : "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }).catch(e=>{ pdfReady=null; throw e; });
   return pdfReady;
 }
 function canvasToBg(cv){ return { src:cv.toDataURL("image/jpeg",0.85), w:cv.width, h:cv.height }; }
@@ -772,7 +886,13 @@ function exportJson(){
 }
 let downloads=null;
 const stamp=()=>{ const d=new Date(), z=n=>String(n).padStart(2,"0"); return `${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`; };
+function androidSave(name, data){
+  const blob = data instanceof Blob ? data : new Blob([data], {type: /\.pdf$/i.test(name)?"application/pdf":"application/json"});
+  return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>{ window.__androidSaved=ok=>{ window.__androidSaved=null; ok?res():rej({code:"declined"}); };
+    window.Android.saveFile(name, blob.type||"application/octet-stream", String(fr.result).split(",")[1]); }; fr.onerror=()=>rej({code:"read"}); fr.readAsDataURL(blob); });
+}
 async function saveFile(name, data){
+  if (window.Android && window.Android.saveFile) return androidSave(name, data);
   if (downloads){
     for (let i=0;;i++){ try{ await downloads.save({filename:name, data}); return; }
       catch(e){ if (e && e.code==="rate_limited" && i<4){ await new Promise(r=>setTimeout(r, 1200)); continue; } throw e; } } }
@@ -782,10 +902,11 @@ async function saveFile(name, data){
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
 // ---- PDF (벡터) ----
+function loadScriptFrom(urls){ return new Promise((res,rej)=>{ let i=0; const next=()=>{ if (i>=urls.length) return rej(); const sc=document.createElement("script"); sc.src=urls[i++]; sc.onload=res; sc.onerror=()=>{ sc.remove(); next(); }; document.head.appendChild(sc); }; next(); }); }
 let jsPDFReady=null;
 function loadJsPDF(){
   if (window.jspdf) return Promise.resolve();
-  if (!jsPDFReady) jsPDFReady=new Promise((res,rej)=>{ const sc=document.createElement("script"); sc.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload=res; sc.onerror=()=>{ jsPDFReady=null; rej(); }; document.head.appendChild(sc); });
+  if (!jsPDFReady) jsPDFReady=loadScriptFrom(["lib/jspdf.umd.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"]).catch(e=>{ jsPDFReady=null; throw e; });
   return jsPDFReady;
 }
 const hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
@@ -795,9 +916,8 @@ function buildPdf(){
     if (i) doc.addPage();
     const {type,gap}=p.paper; doc.setLineWidth(0.15);
     if (p.bg){ const [x,y,w,h]=bgRect(p); try{ doc.addImage(p.bg.src, "JPEG", x*k, y*k, w*k, h*k); }catch(e){} }
-    else 
-if (type==="ruled"||type==="wide"){ doc.setDrawColor(185,211,230); for (let y=140;y<PH-50;y+=gap) doc.line(0,y*k,PW*k,y*k); doc.setDrawColor(232,163,156); doc.line(80*k,0,80*k,PH*k); }
-    else if (type==="grid"){ doc.setDrawColor(220,231,240); for (let y=60;y<PH;y+=gap) doc.line(0,y*k,PW*k,y*k); for (let x=20;x<PW;x+=gap) doc.line(x*k,0,x*k,PH*k); }
+    else if (type!=="blank"){ const cv=document.createElement("canvas"), sc=1.6; cv.width=PW*sc; cv.height=PH*sc; const cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height); paintPaper(cx,type,gap,sc);
+      try{ doc.addImage(cv.toDataURL("image/jpeg",0.9), "JPEG", 0, 0, PW*k, PH*k); }catch(e){} }
     doc.setLineCap("round"); doc.setLineJoin("round");
     for (const st of p.strokes.filter(s=>s.hl)){ const P=st.pts; if (P.length<2) continue; const [r,g,b]=hexRgb(st.color);
       try{ doc.setGState(new doc.GState({opacity:0.42})); }catch(e){} doc.setDrawColor(r,g,b); doc.setLineWidth(st.w*k);
@@ -829,8 +949,21 @@ async function exportJsonFile(quiet){
 function openExport(){ const n=pages.reduce((a,p)=>a+p.strokes.length,0);
   $("exInfo").textContent=`페이지 ${pages.length}장, 획 ${n}개`; $("exportBox").style.display="none"; $("dlgExport").showModal(); }
 let saving=false;
+function downloadNow(name, blob){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
 async function saveBoth(){
-  if (saving) return; saving=true; $("tExport").disabled=true;
+  if (saving) return;
+  // 일반 브라우저(GitHub 사이트 등): 두 파일을 '누른 그 순간'에 한꺼번에 내려받아야 브라우저가 두 번째 파일을 막지 않아요
+  if (!window.Android && !downloads){
+    if (!window.jspdf){ toast("PDF 도구를 준비하는 중이에요. 잠시 후 다시 눌러 주세요."); loadJsPDF().catch(()=>toast("PDF 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.")); return; }
+    let pdf=null; try{ pdf=buildPdf(); }catch(e){}
+    const name=`필체노트_${stamp()}`;
+    if (pdf) downloadNow(name+".pdf", pdf);
+    downloadNow(name+".json", new Blob([exportJson()],{type:"application/json"})); exported();
+    toast(pdf? "PDF와 JSON을 저장했어요. 둘 중 하나가 없으면 아래 버튼으로 다시 받으세요." : "JSON은 저장했고 PDF는 만들지 못했어요.",
+      [{label:"PDF 다시", fn:()=>{ try{ downloadNow(name+".pdf", buildPdf()); }catch(e){ toast("PDF를 만들지 못했어요."); } }}, {label:"JSON 다시", fn:()=>downloadNow(name+".json", new Blob([exportJson()],{type:"application/json"}))}], 12000);
+    return;
+  }
+  saving=true; $("tExport").disabled=true;
   try{
     const j=await exportJsonFile(true);
     await new Promise(r=>setTimeout(r, 400));
@@ -846,7 +979,7 @@ async function saveBoth(){
 $("tExport").onclick=saveBoth;
 $("btnExport").onclick=()=>{ $("dlgSettings").close(); openExport(); };
 function exported(){ set.lastExport=Date.now(); markDirty(null); }
-$("exPdf").onclick=async()=>{ if (await exportPdf()) $("dlgExport").close(); };
+$("exPdf").onclick=async()=>{ if (!window.Android && !downloads && window.jspdf){ try{ downloadNow(`필체노트_${stamp()}.pdf`, buildPdf()); $("dlgExport").close(); toast("PDF를 저장했어요."); }catch(e){ toast("PDF를 만들지 못했어요."); } return; } if (await exportPdf()) $("dlgExport").close(); };
 $("exJson").onclick=async()=>{ if (await exportJsonFile()) $("dlgExport").close(); };
 $("exBoth").onclick=async()=>{ $("dlgExport").close(); await saveBoth(); };
 $("btnCopy").onclick=async()=>{ const t=exportJson(); try{ await navigator.clipboard.writeText(t); exported(); toast("JSON을 복사했어요."); }
@@ -875,15 +1008,14 @@ async function init(){
   if (!pages.length){ pages=[newPage("ruled")]; markDirty(pages[0]); }
   pages.forEach(markDirty); bookLabel(); handInfo();
   try{ const pk=await store.get("meta","pack"); if (pk && pk.format==="hw-pack-v1") PACK=pk; }catch(e){}
-  if (location.protocol.startsWith("http")){         // 사이트 폴더에 pack.json이 있으면 자동으로 불러오기 (새 버전이면 교체)
-    fetch("pack.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then(async j=>{ if (j && j.format==="hw-pack-v1" && (!PACK || PACK.createdAt!==j.createdAt)){ PACK=j; await store.put("meta", j, "pack"); packInfo(); toast(`필체 팩을 불러왔어요 (${Object.keys(j.glyphs).length}자).`); } }).catch(()=>{});
-  }
+  $("packUrl").value=set.packUrl||""; updatePack(false);
   packInfo();
   if (set.lastDataExport && Date.now()-set.lastDataExport>7*864e5) setTimeout(()=>toast("필체 데이터를 다운로드한 지 일주일이 넘었어요.", [{label:"지금 다운로드", fn:exportHandData}], 12000), 1500);
   applyDevice(); renderSwatches(); syncTools(); setTool("pen"); renderAll(); syncUndo();
   $("tEraseSize").textContent=set.eraserBig?"크게":"작게";
   $("saveState").textContent = store.db ? "저장됨" : "저장 안 됨";
   new ResizeObserver(()=>layout()).observe($("scroller"));
+  setTimeout(()=>loadJsPDF().catch(()=>{}), 1200);
   if (window.claude && window.claude.use) window.claude.use("downloads").then(d=>{ downloads=d; }).catch(()=>{});
 }
 document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="hidden") flush(); });
