@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>필체 라벨링</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --chrome:#EEF1F5; --bar:#FFFFFF; --ink:#1D2856; --soft:#5B6690; --muted:#8892A6; --line:#DDE3EA; --accent:#D4483C; --ok:#2E7D5B;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){ --chrome:#12151C; --bar:#1A1F29; --ink:#E4E9F5; --soft:#A3AECA; --muted:#6F7A90; --line:#2A3140; --accent:#E2665A; --ok:#5DBB8E; }}
+:root[data-theme="dark"]{ --chrome:#12151C; --bar:#1A1F29; --ink:#E4E9F5; --soft:#A3AECA; --muted:#6F7A90; --line:#2A3140; --accent:#E2665A; --ok:#5DBB8E; }
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--chrome);color:var(--ink);font-family:"IBM Plex Sans KR",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;font-size:15px}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--soft);outline-offset:2px}
+header{position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 18px;max-width:1300px;margin:0 auto}
+.brand{font-weight:600;margin-right:6px}
+.btn{border:1px solid var(--line);background:var(--chrome);border-radius:8px;padding:8px 13px;font-size:14px}
+.btn.primary{background:var(--ink);color:var(--bar);border-color:var(--ink);font-weight:600}
+.btn:disabled{opacity:.4;cursor:default}
+.sp{flex:1}
+#progress{font-size:13px;color:var(--soft)}
+#writer{width:120px;border:1px solid var(--line);background:var(--chrome);border-radius:8px;padding:7px 10px;font-size:14px}
+main{max-width:1300px;margin:0 auto;padding:16px 18px 80px}
+.empty{background:var(--bar);border:1px solid var(--line);border-radius:12px;padding:28px;max-width:640px;line-height:1.7}
+.empty h2{margin:0 0 8px;font-size:18px}
+#strip{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+#strip button{min-width:36px;height:32px;border:1px solid var(--line);background:var(--bar);border-radius:6px;font-size:12px;position:relative}
+#strip button.done{background:var(--ink);color:var(--bar);border-color:var(--ink)}
+#strip button.skip{opacity:.4}
+#strip button.flag::after{content:"";position:absolute;top:3px;right:3px;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+#strip button.here{outline:2px solid var(--accent);outline-offset:1px}
+.card{background:var(--bar);border:1px solid var(--line);border-radius:12px;padding:16px}
+.head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.head h2{margin:0;font-size:17px}
+#info{font-size:13px;color:var(--soft)}
+#info.err{color:var(--accent)}
+#viewport{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:#fff;position:relative}
+#canvas{display:block}
+#handles{position:relative;height:40px}
+#handles .h{position:absolute;top:4px;display:flex;transform:translateX(-50%)}
+#handles .h button{width:22px;height:30px;border:1px solid #c7cfda;background:#f6f8fb;color:#1D2856;font-size:12px;padding:0}
+#handles .h button:first-child{border-radius:6px 0 0 6px}
+#handles .h button:last-child{border-radius:0 6px 6px 0;border-left:none}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+#text{flex:1;min-width:240px;border:1px solid var(--line);background:var(--chrome);border-radius:10px;padding:11px 12px;font-size:17px}
+.hint{font-size:13px;color:var(--muted);line-height:1.6;margin:10px 0 0}
+#status{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bar);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;max-width:90vw}
+#status.show{opacity:1}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--bar);color:var(--ink);padding:22px;width:min(460px,92vw)}
+dialog::backdrop{background:rgba(10,15,30,.4)}
+dialog h3{margin:0 0 12px}
+dialog p{color:var(--soft);line-height:1.6;margin:0 0 10px}
+.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <span class="brand">필체 라벨링</span>
+  <button class="btn" id="openProj">작업 파일 열기</button>
+  <button class="btn" id="openNote">노트 파일 열기</button>
+  <input type="file" id="fileProj" accept=".json,application/json" hidden>
+  <input type="file" id="fileNote" accept=".json,application/json" hidden>
+  <input id="writer" placeholder="쓴 사람" aria-label="쓴 사람">
+  <span class="sp"></span>
+  <span id="progress"></span>
+  <button class="btn" id="saveProj" disabled>작업 저장</button>
+  <button class="btn primary" id="exportData" disabled>학습 데이터 내보내기</button>
+</div></header>
+
+<main>
+  <div class="empty" id="empty">
+    <h2>노트를 열어 주세요</h2>
+    <p><b>작업 파일 열기</b>: 이어서 하던 라벨링(또는 Claude가 준비한 작업 파일)을 엽니다.<br>
+    <b>노트 파일 열기</b>: 필체 노트에서 저장한 JSON을 열어 새로 시작합니다. 줄 단위로 자동으로 나눠요.</p>
+    <p>줄마다 내용을 확인하고, 글자 칸이 틀린 곳은 칸 사이의 ◀ ▶ 버튼으로 획을 옆 글자로 옮긴 뒤 <b>확정</b>을 누르면 됩니다. 빨간 칸은 확인이 필요한 글자예요.</p>
+  </div>
+  <div id="work" hidden>
+    <nav id="strip" aria-label="줄 목록"></nav>
+    <section class="card">
+      <div class="head"><h2 id="lineTitle"></h2><span id="info"></span></div>
+      <div id="viewport"><canvas id="canvas"></canvas><div id="handles"></div></div>
+      <div class="row">
+        <input id="text" placeholder="이 줄에 쓴 내용 (위첨자 x^{2}, 아래첨자 H_{2}, 글자가 아닌 기호는 □)" autocomplete="off">
+        <button class="btn" id="aiRead" hidden>AI로 읽기</button>
+        <button class="btn" id="autoSeg">자동 나누기</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="prev">이전 줄</button>
+        <button class="btn" id="skip">이 줄 건너뛰기</button>
+        <span class="sp"></span>
+        <button class="btn primary" id="confirm">확정하고 다음</button>
+      </div>
+      <p class="hint">글자를 누르면 학습에서 뺌/되살림. 칸 사이 ◀는 왼쪽 글자의 마지막 획을 오른쪽으로, ▶는 오른쪽 글자의 첫 획을 왼쪽으로 옮겨요(획은 쓴 순서대로 정렬돼 있어요).</p>
+    </section>
+  </div>
+</main>
+<div id="status" role="status"></div>
+
+<dialog id="dlgExport">
+  <h3>학습 데이터 내보내기</h3>
+  <p id="exInfo"></p>
+  <div class="actions"><button class="btn" data-close>취소</button><button class="btn primary" id="exGo">내보내기</button></div>
+</dialog>
+
+<script>
+(() => {
+"use strict";
+const $=id=>document.getElementById(id);
+const TOP=140;
+function toast(m){ const el=$("status"); el.textContent=m; el.classList.add("show"); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove("show"),2600); }
+document.querySelectorAll("dialog [data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
+const HANG=c=>c>="\uac00"&&c<="\ud7a3";
+
+// ---------------- 상태 ----------------
+let P=null;      // {format, writer, notebook, lines:[{page,k,text,xmax,skip,counts,flag,excl,done}]}
+let cur=0, LC=null; // LC: 현재 줄 계산 결과
+const bbox=s=>{ let a=1e9,b=1e9,c=-1e9,d=-1e9; for(const q of s.pts){ a=Math.min(a,q[0]); b=Math.min(b,q[1]); c=Math.max(c,q[0]); d=Math.max(d,q[1]); } return [a,b,c,d]; };
+
+function bandsOf(nb){
+  const out=[];
+  nb.pages.forEach((p,pi)=>{ const gap=(p.paper&&p.paper.gap)||40; const B=new Map();
+    p.strokes.forEach((s,si)=>{ if(!s.pts||!s.pts.length||s.src==="guide") return; const bb=bbox(s); const k=Math.floor(((bb[1]+bb[3])/2-TOP)/gap)+1; if(!B.has(k)) B.set(k,[]); B.get(k).push(si); });
+    [...B.keys()].sort((a,b)=>a-b).forEach(k=>out.push({page:pi,k,gap,idx:B.get(k)}));
+  });
+  return out;
+}
+let BANDS=null;
+function lineStrokes(L){
+  const band=BANDS.find(b=>b.page===L.page&&b.k===L.k); if(!band) return {strokes:[],gap:40};
+  const pg=P.notebook.pages[L.page];
+  let st=band.idx.map(i=>pg.strokes[i]).filter(s=>L.xmax==null||bbox(s)[2]<=L.xmax);
+  st=st.slice().sort((a,b)=>a.t0-b.t0);
+  return {strokes:st, gap:band.gap};
+}
+
+// ---------------- 텍스트 → 토큰 ----------------
+function tokens(text){
+  const out=[]; let i=0, sp=false;
+  while(i<text.length){ const c=text[i];
+    if(/\s/.test(c)){ sp=true; i++; continue; }
+    if((c==="^"||c==="_")&&i+1<text.length){ const lvl=c==="^"?1:-1;
+      if(text[i+1]==="{"){ let k=text.indexOf("}",i+2); if(k<0) k=text.length; let first=true; for(const ch of text.slice(i+2,k)){ if(/\s/.test(ch)) continue; out.push({ch,lvl,sp:first&&sp}); first=false; } sp=false; i=k+1; }
+      else { out.push({ch:text[i+1],lvl,sp}); sp=false; i+=2; }
+      continue; }
+    out.push({ch:c,lvl:0,sp}); sp=false; i++;
+  }
+  return out;
+}
+
+// ---------------- 자동 분할 (시간순 획을 글자 수만큼 연속 구간으로) ----------------
+function autoSegment(strokes, T, gap, text){
+  const M=strokes.length, N=T.length; if(!N) return []; if(M<N) return null;
+  const B=strokes.map(bbox), CX=B.map(b=>(b[0]+b[2])/2), K=12;
+  const ew=(ch,lvl)=>{ const k=lvl?0.6:1; let e;
+    if(HANG(ch)) e=0.85; else if("•.,:;'".includes(ch)) e=0.12; else if("()[]".includes(ch)) e=0.22; else if("-~".includes(ch)) e=0.35;
+    else if("+=×".includes(ch)) e=0.4; else if(/[0-9]/.test(ch)) e=0.38; else if(ch==="□") return null; else if(/[A-ZÅ]/.test(ch)) e=0.55; else if(/[a-z]/i.test(ch)) e=0.42; else e=0.5;
+    return e*k*gap; };
+  let E=T.map(t=>ew(t.ch,t.lvl));
+  const span=Math.max(...B.map(b=>b[2]))-Math.min(...B.map(b=>b[0]));
+  const nsp=(text.match(/ /g)||[]).length;
+  const tot=E.reduce((a,e)=>a+(e==null?0.6*gap:e),0)+(N-1)*0.08*gap+nsp*0.3*gap;
+  const f=tot>0?span/tot:1; E=E.map(e=>e==null?null:e*f);
+  const box=(a,b)=>{ let lo=1e9,hi=-1e9,clo=1e9,chi=-1e9,ylo=1e9,yhi=-1e9; for(let i=a;i<b;i++){ lo=Math.min(lo,B[i][0]); hi=Math.max(hi,B[i][2]); clo=Math.min(clo,CX[i]); chi=Math.max(chi,CX[i]); ylo=Math.min(ylo,B[i][1]); yhi=Math.max(yhi,B[i][3]); } return {lo,hi,clo,chi,h:yhi-ylo}; };
+  const memo=new Map(); const bx=(a,b)=>{ const k=a*1000+b; if(!memo.has(k)) memo.set(k,box(a,b)); return memo.get(k); };
+  const g=(n,a,b)=>{ const x=bx(a,b), e=E[n]; let c=e==null?0:((x.hi-x.lo)-e)**2/(0.35*gap)**2;
+    if("•.,:;".includes(T[n].ch)) c+=Math.max(0,x.h-0.3*gap)**2/(0.1*gap)**2; return c; };
+  const tr=(pa,a,b)=>{ const p=bx(pa,a), x=bx(a,b); let c=8*Math.max(0,p.chi-x.clo)/gap; if(x.lo<p.lo) c+=5; return c; };
+  let D=[new Map()]; const BP=[new Map()];
+  for(let b=1;b<=Math.min(K,M);b++) D[0].set(b*1000, {v:g(0,0,b), a:0, b});
+  for(let n=1;n<N;n++){ const nd=new Map(), bp=new Map();
+    for(const [key,st] of D[n-1]){ const pa=st.a, a=st.b;
+      for(let b=a+1;b<=Math.min(a+K,M);b++){ if(M-b<N-1-n) break;
+        const v=st.v+g(n,a,b)+tr(pa,a,b), k2=a*1000+b, old=nd.get(k2);
+        if(!old||v<old.v){ nd.set(k2,{v,a,b}); bp.set(k2,pa*1000+a); } } }
+    D.push(nd); BP.push(bp); }
+  let best=null, bestKey=null; for(const [k,st] of D[N-1]) if(st.b===M && (!best||st.v<best.v)){ best=st; bestKey=k; }
+  if(!best) return null;
+  const cuts=[]; let k=bestKey;
+  for(let n=N-1;n>=0;n--){ const a=Math.floor(k/1000), b=k%1000; cuts.push(b-a); if(n>0) k=BP[n].get(k); }
+  return cuts.reverse();
+}
+
+// ---------------- 현재 줄 계산·그리기 ----------------
+const SC=3; // 1단위 = 3px
+function compute(){
+  const L=P.lines[cur]; const {strokes,gap}=lineStrokes(L); const T=tokens(L.text||"");
+  let err="";
+  if(!L.skip && T.length){
+    const ok=L.counts && L.counts.length===T.length && L.counts.reduce((a,b)=>a+b,0)===strokes.length;
+    if(!ok){ const c=autoSegment(strokes,T,gap,L.text); if(c){ L.counts=c; L.flag=c.map(()=>false); L.excl=c.map(()=>false); } else { L.counts=null; err=`획 ${strokes.length}개로 글자 ${T.length}개를 나눌 수 없어요. 내용이 맞는지 확인해 주세요.`; } }
+    if(L.counts){ L.flag=L.flag&&L.flag.length===L.counts.length?L.flag:L.counts.map(()=>false); L.excl=L.excl&&L.excl.length===L.counts.length?L.excl:L.counts.map(()=>false); }
+  }
+  const groups=[];
+  if(!L.skip && L.counts && T.length===L.counts.length){ let i=0;
+    L.counts.forEach((n,gi)=>{ const ss=strokes.slice(i,i+n); i+=n; const bb=ss.map(bbox);
+      groups.push({ch:T[gi].ch,lvl:T[gi].lvl,sp:T[gi].sp,strokes:ss,minx:Math.min(...bb.map(b=>b[0])),maxx:Math.max(...bb.map(b=>b[2])),miny:Math.min(...bb.map(b=>b[1])),maxy:Math.max(...bb.map(b=>b[3]))}); }); }
+  LC={strokes,gap,T,groups,err,base:TOP+L.k*gap};
+}
+function draw(){
+  const L=P.lines[cur], {strokes,gap,groups,base}=LC;
+  const xs=strokes.flatMap(s=>s.pts.map(q=>q[0])); const x0=(xs.length?Math.min(...xs):0)-20, x1=(xs.length?Math.max(...xs):600)+20;
+  const y0=base-gap*1.7, y1=base+gap*0.9; const W=Math.max(600,(x1-x0)*SC), H=(y1-y0)*SC+26;
+  const cv=$("canvas"), d=window.devicePixelRatio||1; cv.width=W*d; cv.height=H*d; cv.style.width=W+"px"; cv.style.height=H+"px";
+  const c=cv.getContext("2d"); c.setTransform(d,0,0,d,0,0); c.clearRect(0,0,W,H); c.fillStyle="#fff"; c.fillRect(0,0,W,H);
+  const X=x=>(x-x0)*SC, Y=y=>(y-y0)*SC;
+  c.strokeStyle="#cfe0ee"; c.beginPath(); c.moveTo(0,Y(base)); c.lineTo(W,Y(base)); c.stroke();
+  const inGroup=new Map(); groups.forEach((g,gi)=>g.strokes.forEach(s=>inGroup.set(s,gi)));
+  groups.forEach((g,gi)=>{ const bg=L.excl[gi]?"rgba(140,140,140,.18)":L.flag[gi]&&!L.done?"rgba(212,72,60,.16)":(gi%2?"rgba(29,40,86,.05)":"rgba(46,125,91,.06)");
+    c.fillStyle=bg; c.fillRect(X(g.minx)-2,4,(g.maxx-g.minx)*SC+4,H-30); });
+  c.lineCap="round"; c.lineJoin="round";
+  for(const s of strokes){ const gi=inGroup.get(s); const col=gi==null?"#999":(L.excl[gi]?"#aaa":(gi%2?"#1D2856":"#2E7D5B"));
+    c.strokeStyle=col; c.lineWidth=2; c.beginPath(); s.pts.forEach((q,i)=>i?c.lineTo(X(q[0]),Y(q[1])):c.moveTo(X(q[0]),Y(q[1]))); c.stroke(); }
+  c.font="600 17px IBM Plex Sans KR, sans-serif"; c.textAlign="center";
+  groups.forEach((g,gi)=>{ c.fillStyle=L.excl[gi]?"#aaa":(L.flag[gi]&&!L.done?"#D4483C":(gi%2?"#1D2856":"#2E7D5B")); c.fillText(L.excl[gi]?"✕":g.ch,X((g.minx+g.maxx)/2),H-8); });
+  // 경계 손잡이
+  const hs=$("handles"); hs.innerHTML=""; hs.style.width=W+"px";
+  for(let gi=0;gi<groups.length-1;gi++){ const a=groups[gi], b=groups[gi+1]; const x=X((a.maxx+b.minx)/2);
+    const h=document.createElement("div"); h.className="h"; h.style.left=x+"px";
+    const l=document.createElement("button"); l.textContent="◀"; l.setAttribute("aria-label",`${a.ch}의 마지막 획을 ${b.ch}로`);
+    const r=document.createElement("button"); r.textContent="▶"; r.setAttribute("aria-label",`${b.ch}의 첫 획을 ${a.ch}로`);
+    l.onclick=()=>moveStroke(gi,-1); r.onclick=()=>moveStroke(gi,1); h.append(l,r); hs.appendChild(h); }
+  cv.onclick=e=>{ const r=cv.getBoundingClientRect(); const ux=(e.clientX-r.left)/SC+x0; const gi=groups.findIndex(g=>ux>=g.minx-2&&ux<=g.maxx+2); if(gi<0) return; L.excl[gi]=!L.excl[gi]; save(); draw(); };
+  // 정보
+  const nflag=L.done?0:L.flag?L.flag.filter(Boolean).length:0, nex=L.excl?L.excl.filter(Boolean).length:0;
+  $("lineTitle").textContent=`${cur+1}번 줄 · ${L.page+1}쪽`;
+  const info=$("info"); info.className=LC.err?"err":"";
+  info.textContent = L.skip ? `건너뛴 줄${L.note?" ("+L.note+")":""}` : LC.err || `글자 ${groups.length}개${nflag?` · 확인 필요 ${nflag}개`:""}${nex?` · 제외 ${nex}개`:""}${L.done?" · 확정됨":""}`;
+  $("skip").textContent=L.skip?"이 줄 되살리기":"이 줄 건너뛰기";
+}
+function moveStroke(gi,dir){ const L=P.lines[cur];
+  if(dir<0){ if(L.counts[gi]<=1) return toast("글자에 획이 하나뿐이라 옮길 수 없어요."); L.counts[gi]--; L.counts[gi+1]++; }
+  else { if(L.counts[gi+1]<=1) return toast("글자에 획이 하나뿐이라 옮길 수 없어요."); L.counts[gi+1]--; L.counts[gi]++; }
+  L.done=false; compute(); draw(); save(); renderStrip(); }
+
+// ---------------- 줄 목록·진행 ----------------
+function renderStrip(){
+  const s=$("strip"); s.innerHTML="";
+  P.lines.forEach((L,i)=>{ const b=document.createElement("button"); b.textContent=i+1;
+    b.className=(L.done?"done ":"")+(L.skip?"skip ":"")+(!L.done&&L.flag&&L.flag.some(Boolean)?"flag ":"")+(i===cur?"here":"");
+    b.onclick=()=>go(i); s.appendChild(b); });
+  const act=P.lines.filter(L=>!L.skip), done=act.filter(L=>L.done).length;
+  $("progress").textContent=`확정 ${done}/${act.length}줄`;
+}
+function go(i){ cur=Math.max(0,Math.min(P.lines.length-1,i)); const L=P.lines[cur]; $("text").value=L.text||""; compute(); draw(); renderStrip();
+  $("viewport").scrollLeft=0; }
+$("prev").onclick=()=>go(cur-1);
+$("skip").onclick=()=>{ const L=P.lines[cur]; L.skip=!L.skip; L.done=false; compute(); draw(); renderStrip(); save(); };
+$("confirm").onclick=()=>{ const L=P.lines[cur];
+  if(!L.skip){ if(!L.text||!L.counts){ toast("내용을 입력하고 글자 칸이 나뉜 뒤에 확정할 수 있어요."); return; } L.done=true; L.flag=L.flag.map(()=>false); }
+  save(); const nx=P.lines.findIndex((x,i)=>i>cur&&!x.done&&!x.skip); go(nx>=0?nx:Math.min(cur+1,P.lines.length-1)); };
+let tt=null;
+$("text").oninput=()=>{ clearTimeout(tt); tt=setTimeout(()=>{ const L=P.lines[cur]; L.text=$("text").value; L.counts=null; L.done=false; compute(); draw(); renderStrip(); save(); },400); };
+$("autoSeg").onclick=()=>{ const L=P.lines[cur]; L.counts=null; L.done=false; compute(); draw(); renderStrip(); save(); toast("자동으로 다시 나눴어요."); };
+document.addEventListener("keydown",e=>{ if(e.target.tagName==="INPUT") return; if(e.key==="ArrowRight") go(cur+1); if(e.key==="ArrowLeft") go(cur-1); });
+
+// ---------------- 저장 (IndexedDB) ----------------
+const db={ h:null,
+  open(){ return new Promise(r=>{ try{ const q=indexedDB.open("hwlabel",1); q.onupgradeneeded=()=>q.result.createObjectStore("kv"); q.onsuccess=()=>{ this.h=q.result; r(); }; q.onerror=()=>r(); }catch(e){ r(); } }); },
+  get(k){ return new Promise(r=>{ if(!this.h) return r(null); const t=this.h.transaction("kv").objectStore("kv").get(k); t.onsuccess=()=>r(t.result); t.onerror=()=>r(null); }); },
+  put(k,v){ return new Promise(r=>{ if(!this.h) return r(); const t=this.h.transaction("kv","readwrite"); t.objectStore("kv").put(v,k); t.oncomplete=()=>r(); t.onerror=()=>r(); }); } };
+let sv=null; function save(){ clearTimeout(sv); sv=setTimeout(()=>db.put("proj",P),400); }
+
+// ---------------- 열기 ----------------
+function start(proj){
+  P=proj; P.writer=P.writer||""; $("writer").value=P.writer;
+  BANDS=bandsOf(P.notebook);
+  if(!P.lines||!P.lines.length) P.lines=BANDS.map(b=>{ const gl=(P.notebook.pages[b.page].guideLines||[]).find(g=>g.k===b.k); return {page:b.page,k:b.k,text:gl?gl.text:""}; });
+  $("empty").hidden=true; $("work").hidden=false; $("saveProj").disabled=false; $("exportData").disabled=false;
+  const first=P.lines.findIndex(L=>!L.done&&!L.skip); go(first>=0?first:0); save();
+}
+$("openProj").onclick=()=>$("fileProj").click();
+$("openNote").onclick=()=>$("fileNote").click();
+$("fileProj").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{ const j=JSON.parse(await f.text()); if(j.format!=="hw-label-project-v1") throw 0; start(j); toast("작업 파일을 열었어요."); }catch(err){ toast("작업 파일(hw-label-project-v1)이 아니에요."); } };
+$("fileNote").onchange=async e=>{ const f=e.target.files[0]; e.target.value=""; if(!f) return;
+  try{ const j=JSON.parse(await f.text()); if(j.format!=="hw-notebook-v1") throw 0; start({format:"hw-label-project-v1",writer:"",notebook:j,lines:[]}); toast(`줄 ${P.lines.length}개로 나눴어요.`); }catch(err){ toast("필체 노트 JSON(hw-notebook-v1)이 아니에요."); } };
+$("writer").oninput=()=>{ if(P){ P.writer=$("writer").value.trim(); save(); } };
+
+// ---------------- AI로 읽기 (claude.ai에서만) ----------------
+let sampleFn=null;
+async function initSample(){ try{ const s=await window.claude.use("sample"); if(!s) return; const lim=await s.limits().catch(()=>null); if(lim&&lim.images){ sampleFn=s; $("aiRead").hidden=false; } }catch(e){} }
+$("aiRead").onclick=async()=>{ if(!LC||!LC.strokes.length) return;
+  const xs=LC.strokes.flatMap(s=>s.pts.map(q=>q[0])), ys=LC.strokes.flatMap(s=>s.pts.map(q=>q[1]));
+  const x0=Math.min(...xs)-10,y0=Math.min(...ys)-10,w=Math.max(...xs)-x0+10,h=Math.max(...ys)-y0+10, k=3;
+  const c=document.createElement("canvas"); c.width=w*k; c.height=h*k; const g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+  g.strokeStyle="#111"; g.lineWidth=2.5; g.lineCap="round"; for(const s of LC.strokes){ g.beginPath(); s.pts.forEach((q,i)=>i?g.lineTo((q[0]-x0)*k,(q[1]-y0)*k):g.moveTo((q[0]-x0)*k,(q[1]-y0)*k)); g.stroke(); }
+  const blob=await new Promise(r=>c.toBlob(r,"image/png")); $("aiRead").disabled=true; $("aiRead").textContent="읽는 중…";
+  try{ const r=await sampleFn("이 이미지는 노트 필기 한 줄이다. 한글, 영어, 숫자, 과학·수학 기호가 섞여 있을 수 있다. 적힌 내용을 띄어쓰기까지 그대로 옮겨 한 줄 텍스트로만 답하라. 위첨자는 x^{2}, 아래첨자는 H_{2}처럼 쓴다. 설명이나 따옴표는 붙이지 마라.",{images:blob,modelTier:"quick"});
+    $("text").value=(r.text||"").trim().split("\n")[0]; $("text").oninput(); toast("읽은 내용을 확인해 주세요."); }
+  catch(e){ toast("AI로 읽지 못했어요. 직접 입력해 주세요."); }
+  finally{ $("aiRead").disabled=false; $("aiRead").textContent="AI로 읽기"; } };
+
+// ---------------- 내보내기 ----------------
+let downloads=null;
+async function saveFile(name, data){
+  if(downloads){ await downloads.save({filename:name,data}); return; }
+  if(window.claude&&window.claude.use) throw {code:"unavailable"};
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([data],{type:"application/json"})); a.download=name; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+const med=a=>{ if(!a.length) return null; const s=a.slice().sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+const sd=a=>{ const m=a.reduce((x,y)=>x+y,0)/a.length; return Math.sqrt(a.reduce((x,y)=>x+(y-m)**2,0)/a.length); };
+function buildDataset(){
+  const keep=[]; let lines=0, flagged=0;
+  const prof={heightRatio:[],baselineOffset:[],sizeJitter:[],baselineJitter:[],slope:[],charGap:[],wordGap:[],indent:[]};
+  const glyphs={};
+  const saveIdx=cur;
+  P.lines.forEach((L,li)=>{ if(L.skip||!L.text) return; cur=li; compute(); const {groups,gap,base}=LC; if(!groups.length) return; lines++;
+    const ok=groups.map((g,gi)=>!L.excl[gi] && (L.done||!L.flag[gi]) && g.ch!=="□");
+    flagged+=groups.filter((g,gi)=>!L.done&&L.flag[gi]&&!L.excl[gi]).length;
+    const hg=groups.filter((g,gi)=>ok[gi]&&HANG(g.ch)&&!g.lvl);
+    let textBase=base-0.2*gap;
+    if(hg.length>=3){ const bots=hg.map(g=>g.maxy), hs=hg.map(g=>g.maxy-g.miny); textBase=med(bots);
+      prof.heightRatio.push(med(hs)/gap); prof.baselineOffset.push((base-textBase)/gap);
+      if(hs.length>=4){ prof.sizeJitter.push(sd(hs)/(hs.reduce((a,b)=>a+b,0)/hs.length)); prof.baselineJitter.push(sd(bots)/gap); }
+      const xs=hg.map(g=>(g.minx+g.maxx)/2); if(hg.length>=6&&Math.max(...xs)-Math.min(...xs)>200){ const mx=xs.reduce((a,b)=>a+b)/xs.length, my=bots.reduce((a,b)=>a+b)/bots.length;
+        let nu=0,de=0; xs.forEach((x,i)=>{ nu+=(x-mx)*(bots[i]-my); de+=(x-mx)**2; }); prof.slope.push(-Math.atan(nu/de)*180/Math.PI); } }
+    prof.indent.push(groups[0].minx);
+    for(let k=1;k<groups.length;k++){ if(!ok[k]||!ok[k-1]) continue; const dd=(groups[k].minx-groups[k-1].maxx)/gap; (groups[k].sp?prof.wordGap:prof.charGap).push(dd); }
+    groups.forEach((g,gi)=>{ if(!ok[gi]) return; const t0=Math.min(...g.strokes.map(s=>s.t0));
+      const strokes=g.strokes.slice().sort((a,b)=>a.t0-b.t0).map(s=>s.pts.map(q=>[+((q[0]-g.minx)/gap+0.12).toFixed(4), +(0.72+(q[1]-textBase)/gap).toFixed(4), +((s.t0-t0)+q[2]).toFixed(1), q[3], q[4]||0, q[5]||0]));
+      (glyphs[g.ch]=glyphs[g.ch]||[]).push({strokes,src:"note",lvl:g.lvl,recordedAt:null,ctx:{page:L.page,line:li,gap,baselineOffset:+((base-textBase)/gap).toFixed(3)}});
+      keep.push(1); });
+  });
+  cur=saveIdx; compute();
+  const r3=v=>v==null?null:Math.round(v*1000)/1000;
+  const layout={heightRatio:r3(med(prof.heightRatio)),baselineOffset:r3(med(prof.baselineOffset)),sizeJitter:r3(med(prof.sizeJitter)),baselineJitter:r3(med(prof.baselineJitter)),
+    slope:r3(med(prof.slope)),charGap:r3(med(prof.charGap.filter(d=>d>-0.3))),wordGap:r3(med(prof.wordGap)),indentUnits:r3(med(prof.indent)),lineGapUnits:40,linesMeasured:prof.heightRatio.length};
+  return {data:{format:"hw-strokes-v1",writer:P.writer||"",source:"필체 라벨링 도구",point:["x","y","t","p","tx","ty"],
+    coords:"x,y는 글자 칸 기준(칸 높이 = 줄 간격 = 1), 기준선 y=0.72(그 줄 글자 바닥 중앙값). t는 글자 첫 획부터 ms, p는 원본 필압, tx/ty는 기울기(도). lvl 1=위첨자, -1=아래첨자",
+    baseline:0.72,device:"galaxy",layoutProfile:layout,stats:{kept:keep.length,uniqueChars:Object.keys(glyphs).length,lines},glyphs}, flagged};
+}
+$("exportData").onclick=()=>{ const {data,flagged}=buildDataset();
+  $("exInfo").textContent=`글자 ${data.stats.kept}개(${data.stats.uniqueChars}종), 줄 ${data.stats.lines}개를 내보내요.`+(flagged?` 확정하지 않은 줄의 빨간 글자 ${flagged}개는 빠져요.`:""); $("dlgExport").showModal(); };
+$("exGo").onclick=async()=>{ const {data}=buildDataset(); const name=`hw_strokes_${(P.writer||"data").replace(/\s+/g,"_")}_v2.json`;
+  try{ await saveFile(name, JSON.stringify(data)); $("dlgExport").close(); toast("학습 데이터를 저장했어요."); }catch(e){ if(e&&e.code==="declined") return; toast("파일 저장을 쓸 수 없어요."); } };
+$("saveProj").onclick=async()=>{ try{ await saveFile(`라벨링작업_${(P.writer||"data").replace(/\s+/g,"_")}.json`, JSON.stringify(P)); toast("작업 파일을 저장했어요."); }catch(e){ if(e&&e.code==="declined") return; toast("파일 저장을 쓸 수 없어요."); } };
+
+// ---------------- 시작 ----------------
+(async()=>{ await db.open(); const saved=await db.get("proj"); if(saved&&saved.notebook){ start(saved); toast("하던 작업을 이어서 열었어요."); }
+  if(window.claude&&window.claude.use){ window.claude.use("downloads").then(d=>{ downloads=d; }).catch(()=>{}); initSample(); } })();
+window.addEventListener("resize",()=>{ if(P&&LC) draw(); });
+})();
+</script>
+</body>
+</html>
