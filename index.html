@@ -798,9 +798,9 @@ $("srcSel").onclick=()=>{ const ta=$("srcText"); const t=ta.value.slice(ta.selec
 let pdfReady=null;
 function loadPdfJs(){
   if (window.pdfjsLib) return Promise.resolve();
-  if (!pdfReady) pdfReady=loadScriptFrom(["lib/pdf.min.js","https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"]).then(()=>{
-      const local=[...document.scripts].some(x=>x.src.endsWith("lib/pdf.min.js"));
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc= local ? "lib/pdf.worker.min.js" : "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }).catch(e=>{ pdfReady=null; throw e; });
+  if (!pdfReady) pdfReady=loadScriptFrom(["lib/pdf.min.js","pdf.min.js","https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"]).then(()=>{
+      const sc=[...document.scripts].find(x=>/pdf\.min\.js$/.test(x.src)); const src=sc?sc.src:"";
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc= src.startsWith("https://cdnjs") || !src ? "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js" : src.replace(/pdf\.min\.js$/,"pdf.worker.min.js"); }).catch(e=>{ pdfReady=null; throw e; });
   return pdfReady;
 }
 function canvasToBg(cv){ return { src:cv.toDataURL("image/jpeg",0.85), w:cv.width, h:cv.height }; }
@@ -906,7 +906,7 @@ function loadScriptFrom(urls){ return new Promise((res,rej)=>{ let i=0; const ne
 let jsPDFReady=null;
 function loadJsPDF(){
   if (window.jspdf) return Promise.resolve();
-  if (!jsPDFReady) jsPDFReady=loadScriptFrom(["lib/jspdf.umd.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"]).catch(e=>{ jsPDFReady=null; throw e; });
+  if (!jsPDFReady) jsPDFReady=loadScriptFrom(["lib/jspdf.umd.min.js","jspdf.umd.min.js","https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"]).catch(e=>{ jsPDFReady=null; throw e; });
   return jsPDFReady;
 }
 const hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
