@@ -172,7 +172,7 @@ dialog p{margin:0 0 12px;color:var(--soft);line-height:1.55}
     <p style="font-size:12px;margin:-6px 0 12px"><a href="label.html" target="_blank" rel="noopener">라벨링 도구 열기</a> (GitHub 사이트에 같이 올렸을 때)</p>
     <div class="row" style="margin-bottom:8px"><button class="btn" id="btnPack">필체 팩 불러오기</button><input type="file" id="filePack" accept=".json,application/json" hidden></div>
     <p style="font-size:12px;margin:0 0 10px" id="packInfo"></p>
-    <div class="row" style="margin-bottom:10px"><input id="packUrl" placeholder="필체 팩 주소 (예: https://아이디.github.io/저장소/pack.json)" style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--chrome);color:var(--ink);-webkit-user-select:text;user-select:text"><button class="btn" id="packCheck">새 팩 확인</button></div>
+    <div class="row" style="margin-bottom:10px"><input id="packUrl" placeholder="비워 두면 기본 주소(GitHub hw_note) 사용" style="flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--chrome);color:var(--ink);-webkit-user-select:text;user-select:text"><button class="btn" id="packCheck">새 팩 확인</button></div>
     <div class="row"><button class="btn" id="btnExport">하나씩 골라 저장</button><button class="btn" id="btnImport">가져오기 (PDF·사진·노트 JSON)</button><input type="file" id="fileImport" accept=".json,application/json,application/pdf,.pdf,image/*" hidden></div>
     <p style="font-size:12px;margin:6px 0 0" id="lastExport"></p>
   </div>
@@ -285,17 +285,20 @@ const store={ db:null,
   clear(name){ return this.tx(name,"readwrite",s=>s.clear()); },
 };
 const dirty=new Set(); let saveTimer=null, metaDirty=false;
-function markDirty(p){ if(p) dirty.add(p.id); else metaDirty=true; $("saveState").textContent="저장 중…"; clearTimeout(saveTimer); saveTimer=setTimeout(flush,500); }
+function markDirty(p){ if(p) dirty.add(p.id); else metaDirty=true; $("saveState").textContent="저장 중…"; clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{ if (window.requestIdleCallback) requestIdleCallback(()=>flush(), {timeout:1500}); else flush(); }, 700); }
 async function flush(){
   try{
-    for (const id of [...dirty]){ const p=pages.find(x=>x.id===id); dirty.delete(id); if (p) await store.put("pages", serializePage(p)); }
+    for (const id of [...dirty]){ const p=pages.find(x=>x.id===id); dirty.delete(id); if (p){ await saveBg(p); await store.put("pages", serializePage(p)); } }
     if (curBook){ curBook.order=pages.map(p=>p.id); curBook.updated=Date.now(); }
     await store.put("meta", { books:BOOKS, current:curBook&&curBook.id }, "library");
     await store.put("meta", set, "settings"); metaDirty=false;
     $("saveState").textContent = store.db ? "저장됨" : "저장 안 됨";
   }catch(e){ $("saveState").textContent="저장 실패"; toast("기기에 저장하지 못했어요. 노트 내보내기로 백업해 주세요."); }
 }
-const serializePage=p=>({ id:p.id, nb:(curBook&&curBook.id), paper:p.paper, strokes:p.strokes, ...(p.guideLines?{guideLines:p.guideLines}:{}), ...(p.bg?{bg:p.bg}:{}) });
+const serializePage=p=>({ id:p.id, nb:(curBook&&curBook.id), paper:p.paper, strokes:p.strokes, ...(p.guideLines?{guideLines:p.guideLines}:{}), ...(p.bg?{bgRef:p.id, bgw:p.bg.w, bgh:p.bg.h}:{}) });
+async function saveBg(p){ if (p.bg && !p._bgSaved){ await store.put("meta", p.bg, "bg:"+p.id); p._bgSaved=true; } }
+async function loadBgs(list){ for (const q of list){ if (q.bg){ q._bgSaved=false; continue; } if (q.bgRef){ try{ const b=await store.get("meta","bg:"+q.bgRef); if (b) q.bg=b; q._bgSaved=true; }catch(e){} } } }
 
 // ---------- 페이지 DOM & 렌더링 ----------
 let pageW=800, S=0.8;
@@ -321,6 +324,7 @@ function seg(ctx, st, a, b, s){
 }
 function bgRect(p){ const b=p.bg, ar=b.h/b.w; let w=PW, h=PW*ar; if (h>PH){ h=PH; w=PH/ar; } return [(PW-w)/2, (PH-h)/2, w, h]; }
 function drawPaper(p){
+  if (p._S!==S) return;
   const c=p.el.bg.getContext("2d"), s=S; c.clearRect(0,0,PW*s,PH*s); c.fillStyle="#fff"; c.fillRect(0,0,PW*s,PH*s);
   if (p.bg){
     if (!p._img){ p._img=new Image(); p._img.onload=()=>drawPaper(p); p._img.src=p.bg.src; }
@@ -329,13 +333,22 @@ function drawPaper(p){
   }
   paintPaper(c, p.paper.type, p.paper.gap, s);
 }
-function drawInk(p, skip){ const c=p.el.ink.getContext("2d"); c.clearRect(0,0,PW*S,PH*S); for (const st of p.strokes) if (st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); for (const st of p.strokes) if (!st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); if (sel && sel.p===p && !skip) drawSel(p); }
-function sizeCanvas(cv){ const d=Math.min(window.devicePixelRatio||1, 2600/(PW*S)); cv.width=Math.round(PW*S*d); cv.height=Math.round(PH*S*d); cv.getContext("2d").setTransform(d,0,0,d,0,0); }
+function drawInk(p, skip){ if (p._S!==S) return; const c=p.el.ink.getContext("2d"); c.clearRect(0,0,PW*S,PH*S); for (const st of p.strokes) if (st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); for (const st of p.strokes) if (!st.hl && !(skip&&skip.has(st.id))) drawStroke(c, st, S); if (sel && sel.p===p && !skip) drawSel(p); }
+function sizeCanvas(cv){ const d=Math.min(window.devicePixelRatio||1, 2, 2600/(PW*S)); cv.width=Math.round(PW*S*d); cv.height=Math.round(PH*S*d); cv.getContext("2d").setTransform(d,0,0,d,0,0); }
 function layout(){
   const avail=$("scroller").clientWidth-32; pageW=Math.min(900, Math.max(280, avail))*(set.zoom||1); S=pageW/PW;
   $("zoomVal").textContent=Math.round((set.zoom||1)*100)+"%";
-  pages.forEach((p,i)=>{ p.el.root.style.width=pageW+"px"; p.el.root.style.height=(PH*S)+"px"; [p.el.bg,p.el.ink,p.el.live].forEach(sizeCanvas); drawPaper(p); drawInk(p); p.el.num.textContent=`${i+1} / ${pages.length}`; });
+  pages.forEach((p,i)=>{ p.el.root.style.width=pageW+"px"; p.el.root.style.height=(PH*S)+"px"; p.el.num.textContent=`${i+1} / ${pages.length}`;
+    if (p._vis) paintPage(p); else releasePage(p); });
 }
+// 보이는(곧 보일) 페이지만 캔버스를 만들어 그리고, 멀어지면 메모리를 비움
+function paintPage(p){ if (!p.el) return; [p.el.bg,p.el.ink,p.el.live].forEach(sizeCanvas); p._S=S; drawPaper(p); drawInk(p); }
+function ensurePage(p){ if (p._S!==S) paintPage(p); }
+function releasePage(p){ if (!p.el || p._S==null) return; for (const c of [p.el.bg,p.el.ink,p.el.live]){ c.width=0; c.height=0; } p._S=null; }
+const pageObserver = ("IntersectionObserver" in window) ? new IntersectionObserver(ents=>{
+  for (const en of ents){ const p=pages.find(x=>x.el && x.el.root===en.target); if (!p) continue;
+    p._vis=en.isIntersecting; if (p._vis) ensurePage(p); else if (!(sel&&sel.p===p)) releasePage(p); }
+}, { root: document.getElementById("scroller"), rootMargin: "1400px 0px" }) : null;
 function buildPage(p){
   const root=document.createElement("div"); root.className="page";
   const bg=document.createElement("canvas"), ink=document.createElement("canvas"), live=document.createElement("canvas");
@@ -351,11 +364,14 @@ function buildPage(p){
   right.append(mk("↑","위로",()=>movePage(p,-1)), mk("↓","아래로",()=>movePage(p,1)), mk("복제","페이지 복제",()=>dupPage(p)), mk("+뒤에","뒤에 페이지 추가",()=>{ paperTarget=pages.indexOf(p)+1; $("paperTitle").textContent="여기 뒤에 새 페이지"; $("dlgPaper").showModal(); }));
   right.append(sel,del); bar.append(num,right);
   root.append(bg,ink,live,bar);
+  try{ live.getContext("2d",{desynchronized:true}); }catch(e){}          // 저지연 펜: 획이 펜 끝에 바로 붙어 나오게
   p.el={root,bg,ink,live,num};
+  if (pageObserver) pageObserver.observe(root); else p._vis=true;
   attachInput(p);
   return root;
 }
-function renderAll(){ const box=$("pages"); box.innerHTML=""; pages.forEach(p=>box.appendChild(p.el?.root || buildPage(p))); layout(); }
+function renderAll(){ const box=$("pages"); box.innerHTML=""; pages.forEach(p=>box.appendChild(p.el?.root || buildPage(p))); layout();
+  requestAnimationFrame(()=>{ const sc=$("scroller").getBoundingClientRect(); pages.forEach(p=>{ const r=p.el.root.getBoundingClientRect(); if (r.bottom>sc.top-1400 && r.top<sc.bottom+1400){ p._vis=true; ensurePage(p); } }); }); }
 function newPage(type){ return { id:uid(), paper:{type, gap:PAPER[type].gap}, strokes:[] }; }
 
 // ---------- 입력 ----------
@@ -369,7 +385,7 @@ function attachInput(p){
   cv.addEventListener("pointerdown", e=>{
     const draws = e.pointerType==="pen" || set.allowTouch;
     if (!draws || (e.pointerType==="touch" && touches.size>1)) return;
-    e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    e.preventDefault(); cv.setPointerCapture(e.pointerId); ensurePage(p);
     if (tool==="ghost"){ const [x,y]=toPage(e); ghostDrag={p, x0:x, y0:y, x1:x, y1:y}; return; }
     if (tool==="lasso"){ lassoDown(p, toPage(e)); return; }
     erasing = tool==="eraser" || isEraserBtn(e);
@@ -571,7 +587,7 @@ async function openBook(id){
   await flush(); setSel && setSel(null);
   curBook=BOOKS.find(b=>b.id===id)||BOOKS[0];
   const all=await store.all("pages")||[]; const byId=new Map(all.map(p=>[p.id,p]));
-  pages=(curBook.order||[]).map(i=>byId.get(i)).filter(Boolean);
+  pages=(curBook.order||[]).map(i=>byId.get(i)).filter(Boolean); await loadBgs(pages);
   if (!pages.length){ pages=[newPage("ruled")]; markDirty(pages[0]); }
   undoStack.length=redoStack.length=0; syncUndo(); renderAll(); bookLabel(); markDirty(null);
   $("scroller").scrollTop=0;
@@ -587,7 +603,7 @@ function renderBooks(){
     open.onclick=async()=>{ $("dlgBooks").close(); await openBook(b.id); toast(`'${b.name}' 노트북을 열었어요.`); };
     const del=document.createElement("button"); del.className="btn danger"; del.textContent="삭제";
     del.onclick=()=>{ $("dlgBooks").close(); confirmBox(`'${b.name}' 노트북을 삭제할까요?`, "안의 페이지와 필기가 모두 지워지고 되돌릴 수 없어요. 필요하면 먼저 필체 데이터를 다운로드하세요.", "삭제", async()=>{
-      try{ for (const q of (await store.all("pages")||[])) if (q.nb===b.id || (b.order||[]).includes(q.id)) await store.del("pages", q.id); }catch(e){}
+      try{ for (const q of (await store.all("pages")||[])) if (q.nb===b.id || (b.order||[]).includes(q.id)){ await store.del("pages", q.id); try{ await store.del("meta","bg:"+q.id); }catch(e){} } }catch(e){}
       BOOKS=BOOKS.filter(x=>x!==b); if (!BOOKS.length) BOOKS=[{id:uid(), name:"내 노트", order:[], updated:Date.now()}];
       if (b===curBook){ curBook=null; await openBook(BOOKS[0].id); } else markDirty(null); toast("노트북을 삭제했어요."); }); };
     row.append(name,info,open,del); box.appendChild(row);
@@ -625,13 +641,21 @@ document.querySelectorAll("#dlgPaper [data-paper]").forEach(b=>b.onclick=()=>{
 let PACK=null, ghostDrag=null, ghostRect=null;
 function packInfo(){ $("packInfo").textContent = PACK ? `불러온 필체 팩: ${PACK.writer||"이름 없음"} · ${Object.keys(PACK.glyphs).length}자 (${PACK.createdAt||""})` : "필체 팩이 없어요. 컴퓨터에서 hw_pack_v3.py로 만든 필체팩 파일을 불러오세요."; }
 // 필체 팩 자동 업데이트: 설정의 주소(또는 사이트의 pack.json)에서 새 버전이 있으면 교체
+const REMOTE_PACKS=["https://presidentmoon.github.io/hw_note/pack.json","https://raw.githubusercontent.com/PresidentMoon/hw_note/main/pack.json"];
+async function tryPack(url){ const r=await fetch(url,{cache:"no-cache"}); if (!r.ok) throw 0; const j=await r.json(); if (!j || j.format!=="hw-pack-v1") throw 0; return j; }
+async function usePack(j, quiet){ PACK=j; await store.put("meta", j, "pack"); packInfo(); if (!quiet) toast(`새 필체 팩을 받았어요 (${Object.keys(j.glyphs).length}자 · ${j.createdAt||""}).`); }
+// 필체 팩 자동 업데이트: 설정의 주소 → (앱이면) GitHub → (사이트면) 같은 폴더의 pack.json
 async function updatePack(manual){
-  const url=(set.packUrl||"").trim() || (location.protocol.startsWith("http") ? "pack.json" : "");
-  if (!url){ if (manual) toast("필체 팩 주소를 먼저 넣어 주세요."); return; }
-  try{ const r=await fetch(url,{cache:"no-cache"}); if (!r.ok) throw 0; const j=await r.json(); if (!j || j.format!=="hw-pack-v1") throw 0;
-    if (!PACK || PACK.createdAt!==j.createdAt){ PACK=j; await store.put("meta", j, "pack"); packInfo(); toast(`새 필체 팩을 받았어요 (${Object.keys(j.glyphs).length}자 · ${j.createdAt||""}).`); }
-    else if (manual) toast("이미 최신 필체 팩이에요."); }
-  catch(e){ if (manual) toast("필체 팩을 받지 못했어요. 주소와 인터넷 연결을 확인해 주세요."); }
+  const app=!!window.Android;
+  if (app && !PACK){ try{ await usePack(await tryPack("pack.json"), true); }catch(e){} }      // 앱에 들어 있는 팩으로 먼저 시작
+  const urls=(set.packUrl||"").trim() ? [set.packUrl.trim()] : (app ? REMOTE_PACKS : (location.protocol.startsWith("http") ? ["pack.json"] : []));
+  if (!urls.length){ if (manual) toast("필체 팩 주소를 먼저 넣어 주세요."); return; }
+  for (const u of urls){
+    try{ const j=await tryPack(u);
+      if (!PACK || PACK.createdAt!==j.createdAt) await usePack(j, false); else if (manual) toast("이미 최신 필체 팩이에요.");
+      return; }catch(e){}
+  }
+  if (manual) toast("필체 팩을 받지 못했어요. 주소와 인터넷 연결을 확인해 주세요.");
 }
 $("packUrl").onchange=()=>{ set.packUrl=$("packUrl").value.trim(); markDirty(null); };
 $("packCheck").onclick=()=>{ set.packUrl=$("packUrl").value.trim(); markDirty(null); updatePack(true); };
@@ -836,7 +860,7 @@ $("fileForm").onchange=e=>{ const f=e.target.files[0]; e.target.value=""; if (f)
 
 async function deletePage(p){
   pages=pages.filter(x=>x!==p); for (const st of [undoStack,redoStack]) for (let i=st.length-1;i>=0;i--) if (st[i].pid===p.id) st.splice(i,1);
-  try{ await store.del("pages", p.id); }catch(e){}
+  try{ await store.del("pages", p.id); await store.del("meta","bg:"+p.id); }catch(e){}
   if (!pages.length) pages.push(newPage("ruled"));
   renderAll(); syncUndo(); markDirty(null);
 }
@@ -1003,7 +1027,7 @@ async function init(){
     const lib=await store.get("meta","library");
     if (lib && lib.books && lib.books.length){ BOOKS=lib.books; curBook=BOOKS.find(b=>b.id===lib.current)||BOOKS[0]; const st=await store.get("meta","settings"); if (st) Object.assign(set, st); }
     else { const meta=await store.get("meta","notebook"); if (meta) Object.assign(set, meta.set||{}); curBook={id:uid(), name:"내 노트", order:meta?(meta.order||[]):[], updated:Date.now()}; BOOKS=[curBook]; }
-    pages=(curBook.order||[]).map(id=>byId.get(id)).filter(Boolean);
+    pages=(curBook.order||[]).map(id=>byId.get(id)).filter(Boolean); await loadBgs(pages);
   }catch(e){ if (!curBook){ curBook={id:uid(), name:"내 노트", order:[], updated:Date.now()}; BOOKS=[curBook]; } }
   if (!pages.length){ pages=[newPage("ruled")]; markDirty(pages[0]); }
   pages.forEach(markDirty); bookLabel(); handInfo();
@@ -1016,6 +1040,8 @@ async function init(){
   $("saveState").textContent = store.db ? "저장됨" : "저장 안 됨";
   new ResizeObserver(()=>layout()).observe($("scroller"));
   setTimeout(()=>loadJsPDF().catch(()=>{}), 1200);
+  try{ if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}     // 기기가 저장 공간이 부족해도 노트를 지우지 않도록 요청
+
   if (window.claude && window.claude.use) window.claude.use("downloads").then(d=>{ downloads=d; }).catch(()=>{});
 }
 document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="hidden") flush(); });
